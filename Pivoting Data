@@ -1,0 +1,1000 @@
+SELECT
+  *,
+  CAST(FORMAT_DATE("%d/%m/%y",yesterdaydate) AS string) AS yesterdaydate2,
+  CAST(FORMAT_DATE("%d/%m/%y",previousdate) AS string)AS previousdate2,
+  CAST(FORMAT_DATE("%d/%m/%y", lastyeardate) AS string) AS lastyeardate2,
+FROM (
+  SELECT
+    *,
+    DATE_SUB(CURRENT_DATE(), INTERVAL 1 day) AS yesterdaydate,
+    DATE_SUB(CURRENT_DATE(), INTERVAL 2 day) AS previousdate,
+    DATE_SUB(DATE_SUB(CURRENT_DATE(), INTERVAL 1 day), INTERVAL 364 day) AS lastyeardate
+  FROM (
+    SELECT
+      *,
+      CASE
+        WHEN type IN ("Web Visits") THEN 1
+        WHEN type IN ("Calls") THEN 2
+        WHEN type IN ("Enquiries") THEN 3
+        WHEN type IN ("Hot keys") THEN 4
+        WHEN type IN ("Visit-Enq CVR%") THEN 5
+        WHEN type IN ("Quotes") THEN 6
+        WHEN type IN ("Enq-Quote CVR%") THEN 7
+        WHEN type IN ("Bookings") THEN 8
+        WHEN type IN ("Enq-Book CVR%") THEN 9
+        WHEN type IN ("Sales/TTV") THEN 10
+        WHEN type IN ("Revenue") THEN 11
+        WHEN type IN ("Total Profit") THEN 12
+        WHEN type IN ("Agent Commission") THEN 13
+        WHEN type IN ("Marketing Spend") THEN 14
+        WHEN type IN ("ROI") THEN 15
+        WHEN type IN ("CPC") THEN 16
+        WHEN type IN ("CPA") THEN 17
+        WHEN type IN ("% Nurture") THEN 18
+        WHEN type IN ("% Incorrect Number") THEN 19
+      ELSE
+      NULL
+    END
+      AS Sortby
+    FROM (
+      SELECT
+        * EXCEPT(thisyear,
+          lastyear,
+          vtarget,
+          vlastyear,
+          targetx,
+          yesterday),
+        CONCAT(ROUND(vtarget,2),"%") AS vtarget,
+        CONCAT(ROUND(vLastYear,2),"%") AS vLastYear,
+        CASE
+          WHEN type IN ("Revenue", "Total Profit", "Agent Commission", "Sales/TTV", "Marketing Spend", "CPA") THEN CONCAT("£",CAST (ROUND(thisyear,0) AS string))
+          WHEN type IN ("Enq-Quote CVR%",
+          "ROI",
+          "Enq-Book CVR%",
+          "% Nurture",
+          "% Incorrect Number") THEN CONCAT(CAST (thisyear AS string),"%")
+        ELSE
+        CAST(thisyear AS string)
+      END
+        AS ThisYear,
+        CASE
+          WHEN type IN ("Revenue", "Total Profit", "Agent Commission", "Sales/TTV", "Marketing Spend", "CPA") THEN CONCAT("£",CAST (ROUND(lastyear,0) AS string))
+          WHEN type IN ("Enq-Quote CVR%",
+          "ROI",
+          "Enq-Book CVR%",
+          "% Nurture",
+          "% Incorrect Number") THEN CONCAT(CAST (lastyear AS string),"%")
+        ELSE
+        CAST(lastyear AS string)
+      END
+        AS lastYear,
+        CASE
+          WHEN type IN ("Revenue", "Total Profit", "Agent Commission", "Sales/TTV", "Marketing Spend", "CPA") THEN CONCAT("£",CAST (ROUND(targetx,0) AS string))
+          WHEN type IN ("CPC") THEN concat ("£",
+          CAST (ROUND(targetx,2) AS string))
+          WHEN type IN ("Enq-Quote CVR%", "ROI", "Enq-Book CVR%", "% Nurture", "% Incorrect Number", "Visit-Enq CVR%") THEN CONCAT(CAST (targetx AS string),"%")
+        ELSE
+        CAST(targetx AS string)
+      END
+        AS targetx,
+        CASE
+          WHEN type IN ("Revenue", "Total Profit", "Agent Commission", "Sales/TTV", "Marketing Spend", "CPA") THEN CONCAT("£",CAST (ROUND(Yesterday,0) AS string))
+          WHEN type IN ("Enq-Quote CVR%",
+          "ROI",
+          "Enq-Book CVR%",
+          "% Nurture",
+          "% Incorrect Number") THEN CONCAT(CAST (Yesterday AS string),"%")
+        ELSE
+        CAST(Yesterday AS string)
+      END
+        AS PreviousDay,
+      FROM (
+        SELECT
+          * EXCEPT(thisyear,
+            yesterday,
+            targetx,
+            lastyear),
+          CASE
+            WHEN type IN ("Enq-Quote CVR%", "Enq-Book CVR%", "% Nurture", "% Incorrect Number", "ROI") THEN ROUND(thisyear,2)
+          ELSE
+          thisyear
+        END
+          AS Thisyear,
+          CASE
+            WHEN type IN ("Enq-Quote CVR%", "Enq-Book CVR%", "% Nurture", "% Incorrect Number", "ROI") THEN ROUND(Yesterday,2)
+          ELSE
+          Yesterday
+        END
+          AS yesterday,
+          CASE
+            WHEN type IN ("Enq-Quote CVR%", "Enq-Book CVR%", "% Nurture", "% Incorrect Number", "ROI", "Visit-Enq CVR%") THEN ROUND(targetx,2)
+          ELSE
+          targetx
+        END
+          AS targetx,
+          (thisyear-lastyear)/lastyear*100 AS vLastYear,
+          (thisyear-targetx)/targetx*100 AS vtarget,
+          CASE
+            WHEN type IN ("Enq-Quote CVR%", "Enq-Book CVR%", "% Nurture", "% Incorrect Number", "ROI") THEN ROUND(lastyear,2)
+          ELSE
+          lastyear
+        END
+          AS Lastyear
+        FROM (
+          SELECT
+            ROW_NUMBER() OVER (ORDER BY datex, type DESC) AS ROW,
+            t.datex,
+            el.type,
+            el.thisyear,
+            el.lastyear,
+            el.targetx,
+            el.yesterday
+          FROM (
+            SELECT
+              *,
+              bookings/enquiries AS ENQCONV,
+              QUotedenquiries/enquiries AS ENQQUOTECONV,
+              bookingsy/enquiriesy AS enqconvy,
+              quotedenquiriesy/enquiriesy AS enqquoteconvy,
+              bookingsl/enquiriesl AS enqconvL,
+              quotedenquiriesl/enquiriesl AS enqquoteconvl,
+              day AS datex,
+              incorrectnumber/(enquiries-calls) AS Incorrect_number,
+              incorrectnumberl/(enquiriesl-callsl) AS incorrect_numberL,
+              enquiriest AS enquiriex,
+              incorrectnumbery/(enquiriesy-callsy) AS incorrect_numbery,
+              callst AS callsx,
+              hot_keyst AS hotkeysx,
+              quotesT AS quotedenquiriesx,
+              enq_quote_cvrT AS enqquoteconvx,
+              bookingsT AS bookingx,
+              enq_book_cvrt AS enqconvx,
+              revenuet AS revenuex,
+              profitt AS profitx,
+              incorrectT AS incorrect_numberx
+            FROM (
+              SELECT
+                *
+              FROM (
+                SELECT
+                  * EXCEPT(dayx)
+                FROM (
+                  SELECT
+                    *
+                  FROM (
+                    SELECT
+                      * EXCEPT(bookeddate,
+                        quotedate,
+                        enquirydate)
+                    FROM (
+                      SELECT
+                        day
+                      FROM
+                        UNNEST( GENERATE_DATE_ARRAY(DATE('2017-06-01'), CURRENT_DATE(), INTERVAL 1 DAY) ) AS day)
+                    LEFT JOIN (
+                      SELECT
+                        COUNT(DISTINCT(enquiryreference)) AS nurturew,
+                        dateh
+                      FROM (
+                        SELECT
+                          *
+                        FROM (
+                          SELECT
+                            timestamp,
+                            EXTRACT(date
+                            FROM
+                              timestamp) AS dateh,
+                            enquiryreference,
+                            enquirystatus,
+                            MIN(Timestamp) OVER (PARTITION BY Enquiryreference) AS max_timestamp
+                          FROM
+                            `DATA.Test_2`
+                          WHERE
+                            enquirystatus IN ("Nurture") )
+                        WHERE
+                          timestamp=max_timestamp )
+                      GROUP BY
+                        dateh)
+                    ON
+                      day=dateh
+                    LEFT JOIN (
+                      SELECT
+                        EXTRACT(date
+                        FROM
+                          enquirydate) AS enquirydate,
+                        COUNT(DISTINCT(enquiryreference)) AS enquiries,
+                        SUM(hotkey) AS Hotkeys,
+                        SUM(iscorrectnumber) AS incorrectnumber,
+                        SUM(phone) AS calls
+                      FROM (
+                        SELECT
+                          *
+                        FROM (
+                          SELECT
+                            *
+                          FROM (
+                            SELECT
+                              brand,
+                              timestamp,
+                              isdeletedorarchived,
+                              enquiryreference AS enquiryreference,
+                              enquirydate,
+                              CASE
+                                WHEN iscorrectnumber IS TRUE THEN 0
+                              ELSE
+                              1
+                            END
+                              AS iscorrectnumber,
+                              CASE
+                                WHEN enquirysource IN ("PHONE") THEN 1
+                              ELSE
+                              0
+                            END
+                              AS phone,
+                              MAX(Timestamp) OVER (PARTITION BY Enquiryreference) AS max_timestamp,
+                              CASE
+                                WHEN ishotkey IS TRUE THEN 1
+                              ELSE
+                              0
+                            END
+                              AS hotkey
+                            FROM
+                              DATA.Test_2 )
+                          WHERE
+                            Timestamp = max_timestamp)
+                        WHERE
+                          IsDeletedOrArchived IS NULL )
+                      WHERE
+                        BRAND IN ("Ocean Florida",
+                          "OceanFlorida",
+                          "Ocean California",
+                          "OceanCalifornia")
+                      GROUP BY
+                        enquirydate)
+                    ON
+                      day=enquirydate
+                    LEFT JOIN (
+                      SELECT
+                        EXTRACT(date
+                        FROM
+                          bookeddate) AS bookeddate,
+                        COUNT(DISTINCT(enquiryreference)) AS bookings,
+                        SUM(bookingprofit) AS profit,
+                        SUM(bookedgrossprice) AS Revenue
+                      FROM (
+                        SELECT
+                          *
+                        FROM (
+                          SELECT
+                            *
+                          FROM (
+                            SELECT
+                              *
+                            FROM (
+                              SELECT
+                                *
+                              FROM (
+                                SELECT
+                                  bookedgrossprice,
+                                  bookingprofit,
+                                  timestamp,
+                                  isdeletedorarchived,
+                                  isbooked,
+                                  brand,
+                                  enquiryreference,
+                                  enquirydate,
+                                  bookeddate,
+                                  ROW_NUMBER() OVER(PARTITION BY Enquiryreference ORDER BY g2bquoteid DESC, Timestamp DESC) AS RK
+                                FROM
+                                  DATA.Test_3)
+                              WHERE
+                                RK=1 )
+                            WHERE
+                              isdeletedorarchived IS NULL)
+                          WHERE
+                            isbooked IS TRUE
+                            AND BRAND IN ("Ocean Florida",
+                              "OceanFlorida",
+                              "Ocean California",
+                              "OceanCalifornia")))
+                      GROUP BY
+                        bookeddate)
+                    ON
+                      day=bookeddate
+                    LEFT JOIN (
+                      SELECT
+                        EXTRACT(date
+                        FROM
+                          quotedate) AS quotedate,
+                        COUNT(DISTINCT(enquiryquoteid)) AS quotedenquiries
+                      FROM (
+                        SELECT
+                          *
+                        FROM (
+                          SELECT
+                            *
+                          FROM (
+                            SELECT
+                              *
+                            FROM (
+                              SELECT
+                                quotedate,
+                                enquiryquoteid,
+                                isdeletedorarchived,
+                                brand,
+                                enquiryreference
+                              FROM (
+                                SELECT
+                                  quotedate,
+                                  isdeletedorarchived,
+                                  brand,
+                                  EnquiryQuoteID,
+                                  timestamp,
+                                  enquiryreference,
+                                  MAX(Timestamp) OVER (PARTITION BY Enquiryquoteid ) AS max_timestamp
+                                FROM
+                                  DATA.Test_4 )
+                              WHERE
+                                Timestamp = max_timestamp )
+                            WHERE
+                              isdeletedorarchived IS NULL)
+                          WHERE
+                            BRAND IN ("Ocean Florida",
+                              "OceanFlorida",
+                              "Ocean California",
+                              "OceanCalifornia")))
+                      GROUP BY
+                        quotedate)
+                    ON
+                      day=quotedate )
+                  WHERE
+                    day=DATE_SUB(CURRENT_DATE(), INTERVAL 1 day) )
+                LEFT JOIN (
+                  SELECT
+                    DATE_ADD(DATE_SUB(DATE_SUB(CURRENT_DATE(), INTERVAL 1 day),INTERVAL 1 year),INTERVAL 1 year) AS dayx,
+                    enquiries AS enquiriesL,
+                    hotkeys AS hotkeysl,
+                    bookings AS bookingsl,
+                    profit AS profitl,
+                    revenue AS revenuel,
+                    quotedenquiries AS quotedenquiriesl,
+                    incorrectnumberl,
+                    callsl,
+                    nurture AS nurturex
+                  FROM (
+                    SELECT
+                      * EXCEPT(bookeddate,
+                        quotedate,
+                        enquirydate)
+                    FROM (
+                      SELECT
+                        day
+                      FROM
+                        UNNEST( GENERATE_DATE_ARRAY(DATE('2017-06-01'), CURRENT_DATE(), INTERVAL 1 DAY) ) AS day)
+                    LEFT JOIN (
+                      SELECT
+                        COUNT(DISTINCT(enquiryreference)) AS nurture,
+                        dateh
+                      FROM (
+                        SELECT
+                          *
+                        FROM (
+                          SELECT
+                            timestamp,
+                            EXTRACT(date
+                            FROM
+                              timestamp) AS dateh,
+                            enquiryreference,
+                            enquirystatus,
+                            MIN(Timestamp) OVER (PARTITION BY Enquiryreference) AS max_timestamp
+                          FROM
+                            `DATA.Test_2`
+                          WHERE
+                            enquirystatus IN ("Nurture") )
+                        WHERE
+                          timestamp=max_timestamp )
+                      GROUP BY
+                        dateh)
+                    ON
+                      day=dateh
+                    LEFT JOIN (
+                      SELECT
+                        EXTRACT(date
+                        FROM
+                          enquirydate) AS enquirydate,
+                        COUNT(DISTINCT(enquiryreference)) AS enquiries,
+                        SUM(hotkey) AS Hotkeys,
+                        SUM(iscorrectnumberl) AS incorrectnumberl,
+                        SUM(phone) AS callsl
+                      FROM (
+                        SELECT
+                          *
+                        FROM (
+                          SELECT
+                            *
+                          FROM (
+                            SELECT
+                              brand,
+                              timestamp,
+                              isdeletedorarchived,
+                              enquiryreference AS enquiryreference,
+                              enquirydate,
+                              CASE
+                                WHEN iscorrectnumber IS TRUE THEN 0
+                              ELSE
+                              1
+                            END
+                              AS iscorrectnumberl,
+                              CASE
+                                WHEN enquirysource IN ("PHONE") THEN 1
+                              ELSE
+                              0
+                            END
+                              AS phone,
+                              MAX(Timestamp) OVER (PARTITION BY Enquiryreference) AS max_timestamp,
+                              CASE
+                                WHEN ishotkey IS TRUE THEN 1
+                              ELSE
+                              0
+                            END
+                              AS hotkey
+                            FROM
+                              DATA.Test_2 )
+                          WHERE
+                            Timestamp = max_timestamp)
+                        WHERE
+                          IsDeletedOrArchived IS NULL )
+                      WHERE
+                        BRAND IN ("Ocean Florida",
+                          "OceanFlorida",
+                          "Ocean California",
+                          "OceanCalifornia")
+                      GROUP BY
+                        enquirydate)
+                    ON
+                      day=enquirydate
+                    LEFT JOIN (
+                      SELECT
+                        EXTRACT(date
+                        FROM
+                          bookeddate) AS bookeddate,
+                        COUNT(DISTINCT(enquiryreference)) AS bookings,
+                        SUM(bookingprofit) AS profit,
+                        SUM(bookedgrossprice) AS Revenue
+                      FROM (
+                        SELECT
+                          *
+                        FROM (
+                          SELECT
+                            *
+                          FROM (
+                            SELECT
+                              *
+                            FROM (
+                              SELECT
+                                *
+                              FROM (
+                                SELECT
+                                  bookedgrossprice,
+                                  bookingprofit,
+                                  timestamp,
+                                  isdeletedorarchived,
+                                  isbooked,
+                                  brand,
+                                  enquiryreference,
+                                  enquirydate,
+                                  bookeddate,
+                                  ROW_NUMBER() OVER(PARTITION BY Enquiryreference ORDER BY g2bquoteid DESC, Timestamp DESC) AS RK
+                                FROM
+                                  DATA.Test_3)
+                              WHERE
+                                RK=1 )
+                            WHERE
+                              isdeletedorarchived IS NULL)
+                          WHERE
+                            isbooked IS TRUE
+                            AND BRAND IN ("Ocean Florida",
+                              "OceanFlorida",
+                              "Ocean California",
+                              "OceanCalifornia")))
+                      GROUP BY
+                        bookeddate)
+                    ON
+                      day=bookeddate
+                    LEFT JOIN (
+                      SELECT
+                        EXTRACT(date
+                        FROM
+                          quotedate) AS quotedate,
+                        COUNT(DISTINCT(enquiryquoteid)) AS quotedenquiries
+                      FROM (
+                        SELECT
+                          *
+                        FROM (
+                          SELECT
+                            *
+                          FROM (
+                            SELECT
+                              *
+                            FROM (
+                              SELECT
+                                quotedate,
+                                enquiryquoteid,
+                                isdeletedorarchived,
+                                brand,
+                                enquiryreference
+                              FROM (
+                                SELECT
+                                  quotedate,
+                                  isdeletedorarchived,
+                                  brand,
+                                  EnquiryQuoteID,
+                                  timestamp,
+                                  enquiryreference,
+                                  MAX(Timestamp) OVER (PARTITION BY Enquiryquoteid ) AS max_timestamp
+                                FROM
+                                  DATA.Test_4 )
+                              WHERE
+                                Timestamp = max_timestamp )
+                            WHERE
+                              isdeletedorarchived IS NULL)
+                          WHERE
+                            BRAND IN ("Ocean Florida",
+                              "OceanFlorida",
+                              "Ocean California",
+                              "OceanCalifornia")))
+                      GROUP BY
+                        quotedate)
+                    ON
+                      day=quotedate )
+                  WHERE
+                    day=DATE_SUB(DATE_SUB(CURRENT_DATE(), INTERVAL 1 day),INTERVAL 364 day) )
+                ON
+                  day=dayx )
+              LEFT JOIN (
+                SELECT
+                  date,
+                  SUM(marketingspend) AS marketingspend,
+                  SUM(agency_Commission) AS agency_Commission
+                FROM (
+                  SELECT
+                    date,
+                    CASE
+                      WHEN Google IS NULL THEN 0
+                    ELSE
+                    google
+                  END
+                    +
+                    CASE
+                      WHEN Bing IS NULL THEN 0
+                    ELSE
+                    bing
+                  END
+                    +
+                    CASE
+                      WHEN facebook IS NULL THEN 0
+                    ELSE
+                    facebook
+                  END
+                    +
+                    CASE
+                      WHEN other IS NULL THEN 0
+                    ELSE
+                    other
+                  END
+                    +
+                    CASE
+                      WHEN fees_brand IS NULL THEN 0
+                    ELSE
+                    fees_brand
+                  END
+                    AS MarketingSpend,
+                    agency_Commission
+                  FROM
+                    `Data.Test_5`
+                  WHERE
+                    date=DATE_SUB(CURRENT_DATE(), INTERVAL 1 day))
+                GROUP BY
+                  date )
+              ON
+                day=date
+              LEFT JOIN (
+                SELECT
+                  DATE_ADD(DATE_SUB(DATE_SUB(CURRENT_DATE(), INTERVAL 1 day),INTERVAL 1 year),INTERVAL 1 year) AS datttt,
+                  SUM(marketingspend) AS marketingspendy,
+                  SUM(agency_Commission) AS agency_commissionsy
+                FROM (
+                  SELECT
+                    CASE
+                      WHEN Google IS NULL THEN 0
+                    ELSE
+                    google
+                  END
+                    +
+                    CASE
+                      WHEN Bing IS NULL THEN 0
+                    ELSE
+                    bing
+                  END
+                    +
+                    CASE
+                      WHEN facebook IS NULL THEN 0
+                    ELSE
+                    facebook
+                  END
+                    +
+                    CASE
+                      WHEN other IS NULL THEN 0
+                    ELSE
+                    other
+                  END
+                    +
+                    CASE
+                      WHEN fees_brand IS NULL THEN 0
+                    ELSE
+                    fees_brand
+                  END
+                    AS MarketingSpend,
+                    agency_commission
+                  FROM
+                    `Data.test_5`
+                  WHERE
+                    date=DATE_SUB(CURRENT_DATE(), INTERVAL 2 day))
+                GROUP BY
+                  datttt )
+              ON
+                day=datttt
+              LEFT JOIN (
+                SELECT
+                  DATE_ADD(DATE_SUB(DATE_SUB(CURRENT_DATE(), INTERVAL 1 day),INTERVAL 1 year),INTERVAL 1 year) AS dattttt,
+                  SUM(marketingspend) AS marketingspendL,
+                  SUM(agency_Commission) AS agency_commissionsL
+                FROM (
+                  SELECT
+                    CASE
+                      WHEN Google IS NULL THEN 0
+                    ELSE
+                    google
+                  END
+                    +
+                    CASE
+                      WHEN Bing IS NULL THEN 0
+                    ELSE
+                    bing
+                  END
+                    +
+                    CASE
+                      WHEN facebook IS NULL THEN 0
+                    ELSE
+                    facebook
+                  END
+                    +
+                    CASE
+                      WHEN other IS NULL THEN 0
+                    ELSE
+                    other
+                  END
+                    +
+                    CASE
+                      WHEN fees_brand IS NULL THEN 0
+                    ELSE
+                    fees_brand
+                  END
+                    AS MarketingSpend,
+                    agency_commission
+                  FROM
+                    `Data.test_6`
+                  WHERE
+                    date=DATE_SUB(DATE_SUB(CURRENT_DATE(), INTERVAL 1 day),INTERVAL 364 day))
+                GROUP BY
+                  dattttt )
+              ON
+                day=dattttt
+              LEFT JOIN (
+                SELECT
+                  date AS Datet,
+                  Web_visits AS web_visitis_t,
+                  calls AS callst,
+                  enquiries AS enquiriest,
+                  hot_keys AS hot_keyst,
+                  Visit_Enq_CVR_ AS visit_enq_cvrT,
+                  quotes AS quotesT,
+                  Enq_Quote_CVR_ AS enq_quote_cvrT,
+                  bookings AS bookingsT,
+                  Enq_Book_CVR_ AS enq_book_cvrt,
+                  Sales_TTV AS sales_ttvt,
+                  Revenue AS revenuet,
+                  Profit AS profitt,
+                  Marketing_Spend AS marketing_spendt,
+                  ROI AS roit,
+                  CPC AS cpct,
+                  CPA AS cpat,
+                  __Nurture AS nurturet,
+                  __Incorrect_Phone_Number AS incorrectT,
+                  double_field_19 AS agent_CommissionT
+                FROM
+                  `Data.test_7` )
+              ON
+                day=datet)
+            LEFT JOIN (
+              SELECT
+                DATE_ADD(DATE_SUB(DATE_SUB(CURRENT_DATE(), INTERVAL 1 day),INTERVAL 1 year),INTERVAL 1 year) AS dayx,
+                enquiries AS enquiriesY,
+                hotkeys AS hotkeysy,
+                bookings AS bookingsy,
+                profit AS profity,
+                revenue AS revenuey,
+                quotedenquiries AS quotedenquiriesy,
+                incorrectnumber AS incorrectnumbery,
+                calls AS callsy,
+                nurturew AS nurturey
+              FROM (
+                SELECT
+                  * EXCEPT(bookeddate,
+                    quotedate,
+                    enquirydate)
+                FROM (
+                  SELECT
+                    day
+                  FROM
+                    UNNEST( GENERATE_DATE_ARRAY(DATE('2017-06-01'), CURRENT_DATE(), INTERVAL 1 DAY) ) AS day)
+                LEFT JOIN (
+                  SELECT
+                    COUNT(DISTINCT(enquiryreference)) AS nurturew,
+                    dateh
+                  FROM (
+                    SELECT
+                      *
+                    FROM (
+                      SELECT
+                        timestamp,
+                        EXTRACT(date
+                        FROM
+                          timestamp) AS dateh,
+                        enquiryreference,
+                        enquirystatus,
+                        MIN(Timestamp) OVER (PARTITION BY Enquiryreference) AS max_timestamp
+                      FROM
+                        `DATA.Test_2`
+                      WHERE
+                        enquirystatus IN ("Nurture") )
+                    WHERE
+                      timestamp=max_timestamp )
+                  GROUP BY
+                    dateh)
+                ON
+                  day=dateh
+                LEFT JOIN (
+                  SELECT
+                    EXTRACT(date
+                    FROM
+                      enquirydate) AS enquirydate,
+                    COUNT(DISTINCT(enquiryreference)) AS enquiries,
+                    SUM(hotkey) AS Hotkeys,
+                    SUM(iscorrectnumber) AS incorrectnumber,
+                    SUM(phone) AS calls
+                  FROM (
+                    SELECT
+                      *
+                    FROM (
+                      SELECT
+                        *
+                      FROM (
+                        SELECT
+                          brand,
+                          timestamp,
+                          isdeletedorarchived,
+                          enquiryreference AS enquiryreference,
+                          enquirydate,
+                          CASE
+                            WHEN iscorrectnumber IS TRUE THEN 0
+                          ELSE
+                          1
+                        END
+                          AS iscorrectnumber,
+                          CASE
+                            WHEN enquirysource IN ("PHONE") THEN 1
+                          ELSE
+                          0
+                        END
+                          AS phone,
+                          MAX(Timestamp) OVER (PARTITION BY Enquiryreference) AS max_timestamp,
+                          CASE
+                            WHEN ishotkey IS TRUE THEN 1
+                          ELSE
+                          0
+                        END
+                          AS hotkey
+                        FROM
+                          DATA.Test_2 )
+                      WHERE
+                        Timestamp = max_timestamp)
+                    WHERE
+                      IsDeletedOrArchived IS NULL )
+                  WHERE
+                    BRAND IN ("Ocean Florida",
+                      "OceanFlorida",
+                      "Ocean California",
+                      "OceanCalifornia")
+                  GROUP BY
+                    enquirydate)
+                ON
+                  day=enquirydate
+                LEFT JOIN (
+                  SELECT
+                    EXTRACT(date
+                    FROM
+                      bookeddate) AS bookeddate,
+                    COUNT(DISTINCT(enquiryreference)) AS bookings,
+                    SUM(bookingprofit) AS profit,
+                    SUM(bookedgrossprice) AS Revenue
+                  FROM (
+                    SELECT
+                      *
+                    FROM (
+                      SELECT
+                        *
+                      FROM (
+                        SELECT
+                          *
+                        FROM (
+                          SELECT
+                            *
+                          FROM (
+                            SELECT
+                              bookedgrossprice,
+                              bookingprofit,
+                              timestamp,
+                              isdeletedorarchived,
+                              isbooked,
+                              brand,
+                              enquiryreference,
+                              enquirydate,
+                              bookeddate,
+                              ROW_NUMBER() OVER(PARTITION BY Enquiryreference ORDER BY g2bquoteid DESC, Timestamp DESC) AS RK
+                            FROM
+                              DATA.Test_3)
+                          WHERE
+                            RK=1 )
+                        WHERE
+                          isdeletedorarchived IS NULL)
+                      WHERE
+                        isbooked IS TRUE
+                        AND BRAND IN ("Ocean Florida",
+                          "OceanFlorida",
+                          "Ocean California",
+                          "OceanCalifornia")))
+                  GROUP BY
+                    bookeddate)
+                ON
+                  day=bookeddate
+                LEFT JOIN (
+                  SELECT
+                    EXTRACT(date
+                    FROM
+                      quotedate) AS quotedate,
+                    COUNT(DISTINCT(enquiryquoteid)) AS quotedenquiries
+                  FROM (
+                    SELECT
+                      *
+                    FROM (
+                      SELECT
+                        *
+                      FROM (
+                        SELECT
+                          *
+                        FROM (
+                          SELECT
+                            quotedate,
+                            enquiryquoteid,
+                            isdeletedorarchived,
+                            brand,
+                            enquiryreference
+                          FROM (
+                            SELECT
+                              quotedate,
+                              isdeletedorarchived,
+                              brand,
+                              EnquiryQuoteID,
+                              timestamp,
+                              enquiryreference,
+                              MAX(Timestamp) OVER (PARTITION BY Enquiryquoteid ) AS max_timestamp
+                            FROM
+                              DATA.Test_4 )
+                          WHERE
+                            Timestamp = max_timestamp )
+                        WHERE
+                          isdeletedorarchived IS NULL)
+                      WHERE
+                        BRAND IN ("Ocean Florida",
+                          "OceanFlorida",
+                          "Ocean California",
+                          "OceanCalifornia")))
+                  GROUP BY
+                    quotedate)
+                ON
+                  day=quotedate )
+              WHERE
+                day=DATE_SUB(CURRENT_DATE(), INTERVAL 2 day))
+            ON
+              day=dayx ) AS t
+          CROSS JOIN
+            UNNEST(ARRAY[STRUCT('Enquiries' AS type,
+                enquiries AS thisyear,
+                enquiriesl AS lastyear,
+                enquiriex AS targetx,
+                enquiriesy AS yesterday ), STRUCT('Calls' AS type,
+                calls AS thisyear,
+                callsl AS lastyear,
+                callsx AS targetx,
+                callsy AS yesterday), STRUCT('Web Visits' AS type,
+                NULL AS thisyear,
+                NULL AS lastyear,
+                web_visitis_t AS targetx,
+                NULL AS yesterday), STRUCT('Visit-Enq CVR%' AS type,
+                NULL AS thisyear,
+                NULL AS lastyear,
+                visit_enq_cvrT AS targetx,
+                NULL AS yesterday), STRUCT('Marketing Spend' AS type,
+                marketingspend AS thisyear,
+                marketingspendl AS lastyear,
+                marketing_spendt AS targetx,
+                marketingspendy AS yesterday), STRUCT('ROI' AS type,
+                (profit*2)/(marketingspend+agency_commission) AS thisyear,
+                (profitl*2)/(marketingspendl+agency_commissionsl) AS lastyear,
+                roit AS targetx,
+                (profity*2)/(marketingspendy+agency_commissionsy) AS yesterday), STRUCT('CPC' AS type,
+                NULL AS thisyear,
+                NULL AS lastyear,
+                cpct AS targetx,
+                NULL AS yesterday), STRUCT('CPA' AS type,
+                marketingspend/bookings AS thisyear,
+                marketingspendl/bookingsl AS lastyear,
+                cpat AS targetx,
+                marketingspendy/bookingsy AS yesterday), STRUCT('Hot keys' AS type,
+                hotkeys AS thisyear,
+                hotkeysl AS lastyear,
+                hotkeysx AS targetx,
+                hotkeysy AS yesterday), STRUCT('Bookings' AS type,
+                bookings AS thisyear,
+                bookingsl AS lastyear,
+                bookingx AS targetx,
+                bookingsy AS yesterday), STRUCT('Revenue' AS type,
+                profit AS thisyear,
+                profitl AS lastyear,
+                profitx AS targetx,
+                profity AS yesterday), STRUCT('Total Profit' AS type,
+                profit*2 AS thisyear,
+                profitl*2 AS lastyear,
+                profitx*2 AS targetx,
+                profity*2 AS yesterday), STRUCT('Agent Commission' AS type,
+                Agency_commission AS thisyear,
+                Agency_commissionsL AS lastyear,
+                Agent_commissiont AS targetx,
+                Agency_commissionsy AS yesterday), STRUCT('Sales/TTV' AS type,
+                Revenue AS thisyear,
+                Revenuel AS lastyear,
+                sales_ttvt AS targetx,
+                revenuey AS yesterday), STRUCT('Quotes' AS type,
+                QuotedEnquiries AS thisyear,
+                QuotedEnquiriesl AS lastyear,
+                quotedenquiriesx AS targetx,
+                quotedenquiriesy AS yesterday), STRUCT('Enq-Quote CVR%' AS type,
+                ENQQUOTEconv*100 AS thisyear,
+                ENQquoteconvl*100 AS lastyear,
+                Enqquoteconvx AS targetx,
+                Enqquoteconvy AS yesterday ), STRUCT('Enq-Book CVR%' AS type,
+                enqconv*100 AS thisyear,
+                enqconvl*100 AS lastyear,
+                enqconvx AS targetx,
+                enqconvy*100 AS yesterday), STRUCT('% Incorrect Number' AS type,
+                incorrect_number*100 AS thisyear,
+                incorrect_numberl*100 AS lastyear,
+                incorrect_numberx AS targetx,
+                incorrect_numbery*100 AS Yesterday)
+              # STRUCT('% Nurture' AS type,
+                # nurturew/enquiries*100 AS thisyear,
+                # nurturex/enquiriesl*100 AS lastyear,
+                # nurturet/enquiriest AS targetx,
+                # nurturey/enquiriesy*100 as Yesterday)
+              ] ) el)) ) ) )
