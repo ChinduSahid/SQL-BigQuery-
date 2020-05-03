@@ -1,0 +1,560 @@
+SELECT
+  * EXCEPT(quotedornot)
+FROM (
+  SELECT
+    * EXCEPT(gacid,
+      enquiryreference,
+      newstatus)
+  FROM (
+    SELECT
+      a.*,
+      CASE
+        WHEN b.isbooked IS TRUE THEN 1
+      ELSE
+      0
+    END
+      AS binarybooked,
+      CASE
+        WHEN c.TotalQuotesSent IS NULL THEN 0
+      ELSE
+      c.totalquotessent
+    END
+      AS totalquotes,
+      CASE
+        WHEN c.TotalEmailMessagesRecieved IS NULL THEN 0
+      ELSE
+      c.totalemailmessagesrecieved
+    END
+      AS totalemail,
+      CASE
+        WHEN totalquotessent >0 THEN "Quoted"
+      ELSE
+      "Not Quoted"
+    END
+      AS Quotedornot
+    FROM (
+      SELECT
+        * EXCEPT(destination2,
+          duration1,
+          duration2,
+          duration3),
+        duration1+duration2+duration3 AS totalduration,
+        CASE
+          WHEN enquiryhour BETWEEN 9 AND 20 AND enquiryday IN ("Monday", "Tuesday", "Wednesday", "Thursday") THEN "Businesshour"
+          WHEN enquiryhour>20
+        AND enquiryday IN ("Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday") THEN "Closed"
+          WHEN enquiryhour<9 AND enquiryday IN ("Monday", "Tuesday", "Wednesday", "Thursday") THEN "Closed"
+          WHEN enquiryhour BETWEEN 9
+        AND 19
+        AND enquiryday IN ("Friday",
+          "Saturday") THEN "Businesshour"
+          WHEN enquiryhour>19 AND enquiryday IN ("Friday", "Saturday") THEN "Closed"
+          WHEN enquiryhour<9
+        AND enquiryday IN ("Friday",
+          "Saturday") THEN "Closed"
+          WHEN enquiryhour BETWEEN 10 AND 19 AND enquiryday IN ("Sunday") THEN "Businesshour"
+          WHEN enquiryhour>19
+        AND enquiryday IN ("Sunday") THEN "Closed"
+          WHEN enquiryhour<10 AND enquiryday IN ("Sunday") THEN "Closed"
+      END
+        AS operatingtime,
+        CASE
+          WHEN leadrepeattype IS NULL THEN enquirystatusaall
+        ELSE
+        leadrepeattype
+      END
+        AS NewStatus,
+        CONCAT(CAST(Adults AS string),"Adult ", CONCAT(CAST(Children AS string),"Children ", CONCAT(CAST(Infants AS string),"Infants"))) AS combination_w_infants,
+        CONCAT(CAST(Adults AS string),"Adult ", CONCAT(CAST(Children AS string),"Children ")) AS combination_wo_infants,
+        adults+children AS partysize,
+        CASE
+          WHEN flexibilitydays>0 THEN "Yes"
+        ELSE
+        "No"
+      END
+        AS FlexibleDeparturedate,
+        CASE
+          WHEN task1outcome IN ("Customer bypass") THEN "YES"
+          WHEN task2outcome IN ("Customer bypass") THEN "YES"
+          WHEN task3outcome IN ("Customer bypass") THEN "YES"
+          WHEN task4outcome IN ("CUstomer bypass") THEN "YES"
+          WHEN task5outcome IN ("Customer bypass") THEN "YES"
+        ELSE
+        "NO"
+      END
+        AS CustomerBypass,
+        CASE
+          WHEN destination2 IS NULL THEN ("NONE")
+        ELSE
+        "YES"
+      END
+        AS Destination2
+      FROM (
+        SELECT
+          CASE
+            WHEN contactnumbertype IN ("MOBILE", "BOTH", "LANDLINE") THEN contactnumbertype
+          ELSE
+          "None"
+        END
+          AS contactnumbertype,
+          EXTRACT(hour
+          FROM
+            enquirydate) AS enquiryhour,
+          EXTRACT(month
+          FROM
+            enquirydate) AS enquirymonth,
+          EnquiryDay,
+          CASE
+            WHEN HolidayType IN ("Fly Drive", "Flight + Vehicle") THEN "Fly Drive"
+            WHEN holidaytype IN ("Accommodation Only") THEN "Accommodation only"
+            WHEN holidaytype IN ("Package Holiday") THEN "Package Holiday"
+            WHEN holidaytype IN ("Cruise + Stay") THEN "Cruise + Stay"
+            WHEN holidaytype IN ("Multi Centre") THEN "Multi Centre"
+          ELSE
+          "Others"
+        END
+          AS HolidayType,
+          EnquiryReference,
+          CASE
+            WHEN accommodationtype IN ("Hotel") THEN "Hotel"
+            WHEN accommodationtype IN ("Villa") THEN "Villa"
+            WHEN accommodationtype IN ("Apartment") THEN "Apartment"
+            WHEN accommodationtype IN ("None",
+            "") THEN "None"
+            WHEN accommodationtype IS NULL THEN "None"
+          ELSE
+          "Others"
+        END
+          AS accommodationtype,
+          CASE
+            WHEN departureairport IN ("Any Airport") THEN "Any Airport"
+            WHEN DepartureAirport IN ("Belfast") THEN "Belfast"
+            WHEN DepartureAirport IN ("Birmingham") THEN "Birmingham"
+            WHEN DepartureAirport IN ("Bristol") THEN "Bristol"
+            WHEN DepartureAirport IN ("Edinburgh") THEN "Edinburgh"
+            WHEN DepartureAirport IN ("Glasgow") THEN "Glasgow"
+            WHEN DepartureAirport IN ("London All") THEN "London All"
+            WHEN DepartureAirport IN ("London Gatwick") THEN "London Gatwick"
+            WHEN DepartureAirport IN ("London Heathrow") THEN "London Heathrow"
+            WHEN DepartureAirport IN ("Manchester") THEN "Manchester"
+            WHEN DepartureAirport IN ("Newcastle") THEN "Newcastle"
+            WHEN DepartureAirport IN ("East Midlands") THEN "East Midlands"
+            WHEN DepartureAirport IN ("Dublin") THEN "Dublin"
+          ELSE
+          "other"
+        END
+          AS Departureairport,
+          CASE
+            WHEN LOWER(transporttype) IN ("") THEN "none required"
+            WHEN LOWER(transporttype) IS NULL THEN "none required"
+            WHEN LOWER(transporttype) IN ("none required") THEN "none required"
+            WHEN LOWER(transporttype) IN ("return transfers") THEN "return transfers"
+            WHEN LOWER(transporttype) IN ("fully comp car hire") THEN "fully comp car hire"
+          ELSE
+          "Others"
+        END
+          AS transporttype,
+          CASE
+            WHEN ishotkey =TRUE THEN 1
+          ELSE
+          0
+        END
+          AS binaryhotkey,
+          ABS(CAST(CAST(leadtimeweeks AS float64) AS int64)) AS LeadTimeWeeks,
+          CASE
+            WHEN HasEnquiryComments IS FALSE THEN "No"
+          ELSE
+          "Yes"
+        END
+          AS EnquiryComments,
+          CASE
+            WHEN DATEtime_DIFF( EnquiryDate, FirstEnquiredDate, DAY) = 0 THEN "First Enquiry"
+          ELSE
+          "Enquired Before"
+        END
+          AS EnquiryStatusAALL,
+          CASE
+            WHEN CustomerTitle IN ("Mr") THEN "Mr"
+            WHEN CustomerTitle IN ("Miss") THEN "Miss"
+            WHEN CustomerTitle IN ("Ms") THEN "Ms"
+            WHEN CustomerTitle IN ("Mrs") THEN "Mrs"
+          ELSE
+          "Mr"
+        END
+          AS CustomerTitles,
+          CASE
+            WHEN CustomerTitle IN ("Mr", "Mstr", "Sir", "Capt", "Capt.", "Dr", "Dr.") THEN "Male"
+            WHEN CustomerTitle IN ("") THEN "Unknown"
+            WHEN CustomerTitle IS NULL THEN "Unknown"
+          ELSE
+          "Female"
+        END
+          AS Gender,
+          CASE
+            WHEN FormType IN ("BigForm", "ModalForm", "SideBarForm") THEN formtype
+          ELSE
+          "None"
+        END
+          AS formtype,
+          Duration1,
+          CASE
+            WHEN (CASE
+              WHEN destination2 = destination1 THEN duration3
+              WHEN destination1= destination3 THEN duration4
+            ELSE
+            duration2
+          END
+            )IS NULL THEN 0
+          ELSE
+          duration2
+        END
+          AS duration2,
+          CASE
+            WHEN (CASE
+              WHEN destination3 = destination2 THEN duration4
+              WHEN destination2= destination4 THEN duration5
+            ELSE
+            duration3
+          END
+            )IS NULL THEN 0
+          ELSE
+          duration3
+        END
+          AS duration3,
+          GACID,
+          CASE
+            WHEN EnquirySource IN ("Web") THEN "WEB"
+          ELSE
+          enquirysource
+        END
+          AS enquirysource,
+          EXTRACT(month
+          FROM
+            departuredate) AS departuremonth,
+          EXTRACT(dayofweek
+          FROM
+            departuredate) AS departureday,
+          EXTRACT(week
+          FROM
+            departuredate) AS departureweek,
+          CASE
+            WHEN carhiretype IN ("", "Undefined") THEN "No"
+          ELSE
+          "Yes"
+        END
+          AS carhiretype,
+          CASE
+            WHEN EmailProvider IN ("aol.com") THEN EmailProvider
+            WHEN EmailProvider IN ("btinternet.com") THEN EmailProvider
+            WHEN EmailProvider IN ("gmail.com") THEN EmailProvider
+            WHEN EmailProvider IN ("hotmail.co.uk") THEN EmailProvider
+            WHEN EmailProvider IN ("hotmail.com") THEN EmailProvider
+            WHEN EmailProvider IN ("icloud.com") THEN EmailProvider
+            WHEN EmailProvider IN ("outlook.com") THEN EmailProvider
+            WHEN EmailProvider IN ("yahoo.co.uk") THEN EmailProvider
+            WHEN EmailProvider IN ("sky.com", "live.co.uk", "yahoo.com", "googlemail.com", "ntlworld.com", "msn.com", "me.com", "ntlworld.com") THEN EmailProvider
+          ELSE
+          "Other"
+        END
+          AS Email_provider,
+          SegmentName,
+          SeasonName,
+          CASE
+            WHEN hasansweredquestionnaire IS FALSE THEN "NO"
+          ELSE
+          "YES"
+        END
+          AS hasansweredquestionnaire,
+          CASE
+            WHEN iscorrectnumber IS FALSE THEN "NO"
+          ELSE
+          "YES"
+        END
+          AS iscorrectnumber,
+          EXTRACT(month
+          FROM
+            returndate) AS returnmonth,
+          EXTRACT(dayofweek
+          FROM
+            returndate) AS returnday,
+          EXTRACT(week
+          FROM
+            returndate) AS returnweek,
+          childageaverage,
+          childagemin,
+          childagemax,
+          CASE
+            WHEN flexibilitydays > 20 THEN 0
+          ELSE
+          flexibilitydays
+        END
+          AS flexibilitydays,
+          CASE
+            WHEN subscribetonewsletter IS TRUE THEN "Yes"
+          ELSE
+          "No"
+        END
+          AS subscibetonewsletter,
+          CASE
+            WHEN leadrepeattype IN ("Enquiried Before") THEN "Enquired Before"
+            WHEN leadrepeattype IN ("") THEN "First Enquiry"
+            WHEN leadrepeattype IS NULL THEN "First Enquiry"
+          ELSE
+          leadrepeattype
+        END
+          AS leadrepeattype,
+          destination1,
+          CASE
+            WHEN destination2 = destination1 THEN destination3
+            WHEN destination1= destination3 THEN destination4
+          ELSE
+          destination2
+        END
+          AS destination2,
+          CASE
+            WHEN taskoutcome1x IN ("Call 1", "1") THEN taskoutcome1
+          ELSE
+          "Invalid"
+        END
+          AS task1outcome,
+          CASE
+            WHEN taskoutcome2x IN ("Call 2", "2") THEN taskoutcome2
+            WHEN taskoutcome3x IN ("Call 2",
+            "2") THEN taskoutcome3
+            WHEN taskoutcome4x IN ("Call 2", "2") THEN taskoutcome4
+            WHEN taskoutcome5x IN ("Call 2",
+            "2") THEN taskoutcome5
+            WHEN taskoutcome6x IN ("Call 2", "2") THEN taskoutcome6
+            WHEN taskoutcome7x IN ("Call 2",
+            "2") THEN taskoutcome7
+            WHEN taskoutcome8x IN ("Call 2", "2") THEN taskoutcome8
+            WHEN taskoutcome9x IN ("Call 2",
+            "2") THEN taskoutcome9
+          ELSE
+          "Invalid"
+        END
+          AS task2outcome,
+          CASE
+            WHEN taskoutcome3x IN ("Call 3", "3") THEN taskoutcome3
+            WHEN taskoutcome4x IN ("Call 3",
+            "3") THEN taskoutcome4
+            WHEN taskoutcome5x IN ("Call 3", "3") THEN taskoutcome5
+            WHEN taskoutcome6x IN ("Call 3",
+            "3") THEN taskoutcome6
+            WHEN taskoutcome7x IN ("Call 3", "3") THEN taskoutcome7
+            WHEN taskoutcome8x IN ("Call 3",
+            "3") THEN taskoutcome8
+            WHEN taskoutcome9x IN ("Call 3", "3") THEN taskoutcome9
+          ELSE
+          "Invalid"
+        END
+          AS task3outcome,
+          CASE
+            WHEN taskoutcome4x IN ("Call 4", "4") THEN taskoutcome4
+            WHEN taskoutcome5x IN ("Call 4",
+            "4") THEN taskoutcome5
+            WHEN taskoutcome6x IN ("Call 4", "4") THEN taskoutcome6
+            WHEN taskoutcome7x IN ("Call 4",
+            "4") THEN taskoutcome7
+            WHEN taskoutcome8x IN ("Call 4", "4") THEN taskoutcome8
+            WHEN taskoutcome9x IN ("Call 4",
+            "4") THEN taskoutcome9
+          ELSE
+          "Invalid"
+        END
+          AS task4outcome,
+          CASE
+            WHEN taskoutcome4x IN ("Call 5", "5") THEN taskoutcome5
+            WHEN taskoutcome6x IN ("Call 5",
+            "5") THEN taskoutcome6
+            WHEN taskoutcome7x IN ("Call 5", "5") THEN taskoutcome7
+            WHEN taskoutcome8x IN ("Call 5",
+            "5") THEN taskoutcome8
+            WHEN taskoutcome9x IN ("Call 5", "5") THEN taskoutcome9
+          ELSE
+          "Invalid"
+        END
+          AS task5outcome,
+          totalenquiriesinlast90days,
+          SUM(CASE PassengerType
+              WHEN 'Adult' THEN 1
+            ELSE
+            0
+          END
+            ) Adults,
+          SUM(CASE PassengerType
+              WHEN 'Child' THEN 1
+            ELSE
+            0
+          END
+            ) Children,
+          SUM(CASE PassengerType
+              WHEN 'Infants' THEN 1
+            ELSE
+            0
+          END
+            ) Infants
+        FROM (
+          SELECT
+            *,
+            Destinations[ safe_OFFSET (0)].Name AS Destination1,
+            Destinations[SAFE_OFFSET(1)].Name AS Destination2,
+            Destinations[SAFE_OFFSET(2)].Name AS Destination3,
+            Destinations[SAFE_OFFSET(3)].Name AS Destination4,
+            Destinations[ safe_OFFSET (0)].Duration AS Duration1,
+            destinations[safe_OFFSET(1)].duration AS duration2,
+            destinations[safe_OFFSET(2)].duration AS duration3,
+            destinations[safe_OFFSET(3)].duration AS duration4,
+            destinations[safe_OFFSET(4)].duration AS duration5,
+            ContactOutcomes[SAFE_OFFSET(0)].Outcome AS Taskoutcome1,
+            ContactOutcomes[SAFE_OFFSET(1)].Outcome AS Taskoutcome2,
+            ContactOutcomes[SAFE_OFFSET(2)].Outcome AS Taskoutcome3,
+            ContactOutcomes[SAFE_OFFSET(3)].Outcome AS Taskoutcome4,
+            ContactOutcomes[SAFE_OFFSET(4)].Outcome AS Taskoutcome5,
+            ContactOutcomes[SAFE_OFFSET(5)].Outcome AS Taskoutcome6,
+            ContactOutcomes[SAFE_OFFSET(6)].Outcome AS Taskoutcome7,
+            ContactOutcomes[SAFE_OFFSET(7)].Outcome AS Taskoutcome8,
+            ContactOutcomes[SAFE_OFFSET(8)].Outcome AS Taskoutcome9,
+            ContactOutcomes[ safe_OFFSET (0)].stepid AS Taskoutcome1x,
+            ContactOutcomes[SAFE_OFFSET(1)].stepid AS Taskoutcome2x,
+            ContactOutcomes[SAFE_OFFSET(2)].stepid AS Taskoutcome3x,
+            ContactOutcomes[SAFE_OFFSET(3)].stepid AS Taskoutcome4x,
+            ContactOutcomes[SAFE_OFFSET(4)].stepid AS Taskoutcome5x,
+            ContactOutcomes[SAFE_OFFSET(5)].stepid AS Taskoutcome6x,
+            ContactOutcomes[SAFE_OFFSET(6)].stepid AS Taskoutcome7x,
+            ContactOutcomes[SAFE_OFFSET(7)].stepid AS Taskoutcome8x,
+            ContactOutcomes[SAFE_OFFSET(8)].stepid AS Taskoutcome9x
+          FROM (
+            SELECT
+              *
+            FROM (
+              SELECT
+                *,
+                MAX(Timestamp) OVER (PARTITION BY Enquiryreference) AS max_timestamp
+              FROM
+                DATA.Test_1
+              WHERE
+                enquirydate>="2019-01-01T00:00:00"),
+              UNNEST(Passengers) AS pax
+            WHERE
+              Timestamp = max_timestamp )
+          WHERE
+            BRAND IN ("Ocean Florida",
+              "OceanFlorida",
+              "Ocean California",
+              "OceanCalifornia")
+            AND IsDeletedOrArchived IS NULL
+            AND DATE_DIFF(current_date,EXTRACT(date
+              FROM
+                enquirydate),day)>30 )
+        GROUP BY
+          EnquiryDate,
+          Destination3,
+          destination4,
+          EnquiryDay,
+          duration4,
+          taskoutcome1x,
+          taskoutcome2x,
+          taskoutcome3x,
+          taskoutcome4x,
+          taskoutcome5x,
+          taskoutcome6x,
+          taskoutcome6,
+          taskoutcome7x,
+          taskoutcome7,
+          taskoutcome8x,
+          taskoutcome8,
+          taskoutcome9x,
+          taskoutcome9,
+          CustomerTitle,
+          totalenquiriesinlast90days,
+          HolidayType,
+          EnquiryReference,
+          AccommodationType,
+          DepartureAirport,
+          TransportType,
+          CruiseCabinType,
+          CruiseDestination,
+          LeadTimeWeeks,
+          destination1,
+          duration2,
+          duration3,
+          destination2,
+          HasEnquiryComments,
+          IsHotKey,
+          FormType,
+          IsBooked,
+          GACID,
+          EnquirySource,
+          DepartureDate,
+          CruiseLine,
+          carhiretype,
+          allocateddate,
+          timestamp,
+          emailprovider,
+          SegmentName,
+          SeasonName,
+          hasansweredquestionnaire,
+          iscorrectnumber,
+          flightoptions,
+          returndate,
+          EnquiryComments,
+          childageaverage,
+          childagemin,
+          childagemax,
+          firstenquireddate,
+          departuredateisflexible,
+          flexibilitydays,
+          subscribetonewsletter,
+          contactnumbertype,
+          customercontactid,
+          leadrepeattype,
+          Destination1,
+          Destination2,
+          duration1,
+          taskoutcome1,
+          taskoutcome2,
+          taskoutcome3,
+          taskoutcome4,
+          taskoutcome5,
+          FirstEnquiredDate ) ) AS a
+    LEFT JOIN (
+      SELECT
+        isbooked,
+        enquiryreference
+      FROM (
+        SELECT
+          enquiryreference,
+          isbooked,
+          ROW_NUMBER() OVER(PARTITION BY Enquiryreference ORDER BY g2bquoteid DESC, Timestamp DESC) AS RK
+        FROM
+          DATA.Test_2
+        WHERE
+          enquirydate>="2019-01-01T00:00:00" )
+      WHERE
+        RK=1 ) AS b
+    ON
+      a.enquiryreference=b.enquiryreference
+    LEFT JOIN ( (
+        SELECT
+          totalquotessent,
+          totalemailmessagesrecieved,
+          enquiryreference
+        FROM (
+          SELECT
+            totalquotessent,
+            totalemailmessagesrecieved,
+            timestamp,
+            enquiryreference,
+            ROW_NUMBER() OVER(PARTITION BY Enquiryreference ORDER BY EnquiryQuoteId DESC, Timestamp DESC) AS RK
+          FROM
+            DATA.Test_3
+          WHERE
+            enquirydate>="2019-01-01T00:00:00" )
+        WHERE
+          RK=1 ) ) AS c
+    ON
+      a.enquiryreference=c.enquiryreference ) )
